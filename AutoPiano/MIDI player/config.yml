@@ -1,0 +1,33 @@
+# 編集する前にUMP閉じてなー！ どの設定が何をするかはまにゅある見てなー
+# Close UMP before editing! See manual for documentation
+# https://pipiraworld.web.fc2.com/ump/manual/
+version: 1
+language: en
+midi:
+  loaderThreads: 0
+  usePlayThread: true
+render:
+  background: 0xc0c0c0
+  font: Monospaced
+  fpsLimit: 100
+  height: 694
+  renderInterval: 5.0
+  resourcePack: null
+  usePFAColors: false
+  width: 1366
+  overlay:
+    opaque: false
+    info:
+      scale: 1.0
+      type: DEFAULT
+      position: TOP_RIGHT
+    fps:
+      type: SHOW_ALL
+    desync:
+      type: SHOW_NUMBERS
+ui:
+  font: Yu Gothic UI
+  lastFile: C:\Users\louis\Documents\AutoPiano\somewhere over the rainbow midi.mid
+updateChecker:
+  checkOnStartup: false
+  branch: stable
