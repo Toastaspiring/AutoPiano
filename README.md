@@ -1,7 +1,3 @@
-Based on the code from the two provided Python files, here is a README in markdown format to introduce and explain the technology in both files:
-
----
-
 # MIDI Processing and Playback
 
 ## Overview
