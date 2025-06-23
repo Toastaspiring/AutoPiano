@@ -1,0 +1,12 @@
+*.exe
+*.dll
+Midi/
+song.txt
+midiRecord.txt
+BpmRecord.txt
+sheetConversion.txt
+Source/song.txt
+Source/midiRecord.txt
+Source/BpmRecord.txt
+Source/sheetConversion.txt
+__pycache__/

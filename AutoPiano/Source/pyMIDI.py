@@ -1,4 +1,5 @@
 import os
+import argparse
 
 #======================================
 #----------MIDITRACK-CLASS-------------
@@ -279,70 +280,74 @@ class MidiFile:
 
 """section where you choose the file to convert"""
 
-	#read the file in the designed "path"
-	path = "C:\\Users\\louis\\Documents\\AutoPiano\\Midi" 
-	fileList = os.listdir(path)
+# read the files in the configured path
+parser = argparse.ArgumentParser(description="Convert MIDI files to AutoPiano format")
+parser.add_argument("--midi-dir", default="Midi", help="directory containing .mid files")
+args = parser.parse_args()
 
-	#fill midiList table with all file with ".mid"
-	midList = []
-	for f in fileList:
-		if(".mid" in f):
-			midList.append(f)
+path = args.midi_dir
+fileList = os.listdir(path)
 
-	#show and format all midi files avaible
-	print("Press letter of midi file to process")
-	for i in range(len(midList)):
-		print(chr(97+i),":",midList[i])
+# fill midiList table with all files with ".mid"
+midList = []
+for f in fileList:
+    if(".mid" in f):
+        midList.append(f)
 
-	#user choice made
-	choice = input()
-	print("Processing",midList[ord(choice)-97])
+# show and format all midi files available
+print("Press letter of midi file to process")
+for i in range(len(midList)):
+    print(chr(97+i),":",midList[i])
+
+# user choice made
+choice = input()
+print("Processing",midList[ord(choice)-97])
 
 
 """section where we process the midi and return the result in files"""
-	
-	#create Midi Object, read midi tempo and sort the notes
-	midi = MidiFile(midList[ord(choice)-97])
-	midi.midiSong.write("tempo= " + str(midi.tempo) + "\n")
-	midi.notes.sort()
 
-	#Combine seperate lines with equal timings
-	i = 1
-	while(i < len(midi.notes)):
-		if(midi.notes[i-1][0] == midi.notes[i][0]):
-			midi.notes[i][1] += midi.notes[i-1][1]
-			midi.notes.remove(midi.notes[i-1])
-		else:
-			i+=1
+# create Midi Object, read midi tempo and sort the notes
+midi = MidiFile(os.path.join(path, midList[ord(choice)-97]))
+midi.midiSong.write("tempo= " + str(midi.tempo) + "\n")
+midi.notes.sort()
 
-	#Remove duplicate notes on same line
-	for q in range(len(midi.notes)):
-		letterDict = {}
-		newline = ""
-		for i in range(len(midi.notes[q][1])):
-			if(not(midi.notes[q][1][i] in letterDict)):
-				newline += midi.notes[q][1][i]
-				letterDict[midi.notes[q][1][i]] = True
-		midi.notes[q][1] = newline
+# Combine separate lines with equal timings
+i = 1
+while(i < len(midi.notes)):
+    if(midi.notes[i-1][0] == midi.notes[i][0]):
+        midi.notes[i][1] += midi.notes[i-1][1]
+        midi.notes.remove(midi.notes[i-1])
+    else:
+        i+=1
 
-	#Write notes to song.txt
-	for l in midi.notes:
-		midi.midiSong.write(str(l[0]) + " " + str(l[1]) + "\n")
+# Remove duplicate notes on same line
+for q in range(len(midi.notes)):
+    letterDict = {}
+    newline = ""
+    for i in range(len(midi.notes[q][1])):
+        if(not(midi.notes[q][1][i] in letterDict)):
+            newline += midi.notes[q][1][i]
+            letterDict[midi.notes[q][1][i]] = True
+    midi.notes[q][1] = newline
+
+# Write notes to song.txt
+for l in midi.notes:
+    midi.midiSong.write(str(l[0]) + " " + str(l[1]) + "\n")
 
 
-	#Make a more traditional virtualPiano sheet music made for reading by people
-	offset = midi.notes[0][0]
-	noteCount = 0
-	for l in midi.notes:
-			
-		if(len(l[1]) > 1):
-			note = "["+l[1]+"]"
-		else:
-			note = l[1]
-		noteCount += 1
-		midi.midiSheet.write("%7s " % note)
-		if(noteCount % 8 == 0):
-			midi.midiSheet.write("\n")
+# Make a more traditional virtualPiano sheet music made for reading by people
+offset = midi.notes[0][0]
+noteCount = 0
+for l in midi.notes:
+
+    if(len(l[1]) > 1):
+        note = "["+l[1]+"]"
+    else:
+        note = l[1]
+    noteCount += 1
+    midi.midiSheet.write("%7s " % note)
+    if(noteCount % 8 == 0):
+        midi.midiSheet.write("\n")
 	
 			
 	
