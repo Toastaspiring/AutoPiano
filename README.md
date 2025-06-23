@@ -40,7 +40,7 @@ This script processes MIDI files, extracting note information and formatting it 
    ```
 
 2. **Prepare MIDI Files**:
-   - Place your MIDI files in a designated directory (e.g., `C:\\Users\\your_username\\Documents\\AutoPiano\\Midi`).
+   - Place your MIDI files in a directory of your choice. By default `pyMIDI.py` looks for files in the `Midi/` folder located next to the script. Use the `--midi-dir` option to specify a different location.
 
 ### Running the Scripts
 
@@ -49,7 +49,7 @@ This script processes MIDI files, extracting note information and formatting it 
    - Follow the prompts to select a MIDI file and generate the formatted output.
 
    ```bash
-   python pyMIDI.py
+   python pyMIDI.py --midi-dir /path/to/midi/files
    ```
 
 2. **Play the Processed MIDI**:
