@@ -1,24 +1,18 @@
-import sys
-import os
 import time
 import ctypes
 from ctypes import wintypes
-import pyHook
-import pythoncom
+from pynput import keyboard
 
-stopPumping = False
 user32 = ctypes.WinDLL('user32', use_last_error=True)
-tstart = time.time()
 isPlaying = False
 
 	
-def OnKeyDown(event):
-	global isPlaying
-	if(event.Key == "Delete"):
-		isPlaying = not isPlaying
-		if(isPlaying):
-			runMacro()
-	return True
+def OnKeyDown(key):
+        global isPlaying
+        if key == keyboard.Key.delete:
+                isPlaying = not isPlaying
+                if isPlaying:
+                        runMacro()
 	
 INPUT_MOUSE    = 0
 INPUT_KEYBOARD = 1
@@ -177,8 +171,6 @@ def runMacro():
 			pressLetter(n)
 
 infoTuple = processFile()
-hooks_manager = pyHook.HookManager()
-hooks_manager.KeyDown = OnKeyDown
-hooks_manager.HookKeyboard()
-pythoncom.PumpMessages()
+with keyboard.Listener(on_press=OnKeyDown) as listener:
+        listener.join()
 

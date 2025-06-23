@@ -8,7 +8,7 @@ This project consists of two main Python scripts, `playSong.py` and `pyMIDI.py`.
 
 ### `playSong.py`
 
-This script is responsible for monitoring keyboard events and playing back MIDI sequences through simulated keyboard inputs. It uses the `ctypes` library for low-level keyboard event handling and `pyHook` for capturing keypresses.
+This script monitors keyboard events and plays back MIDI sequences using simulated keyboard inputs. It relies on the `ctypes` library for low-level keyboard interaction and `pynput` to capture keypresses.
 
 #### Key Features:
 - **Keyboard Event Handling**: Uses `ctypes` to simulate keyboard inputs and control playback.
@@ -26,9 +26,8 @@ This script processes MIDI files, extracting note information and formatting it 
 
 ## Dependencies
 
-- `pyHook`: For capturing keyboard events.
-- `pythoncom`: For handling COM objects required by `pyHook`.
-- `ctypes`: For low-level input simulation.
+- `pynput`: For capturing keyboard events in a cross-platform manner.
+- `ctypes`: For low-level input simulation on Windows.
 
 ## Usage
 
@@ -36,7 +35,7 @@ This script processes MIDI files, extracting note information and formatting it 
 
 1. **Install Dependencies**:
    ```bash
-   pip install pyHook pythoncom
+   pip install pynput
    ```
 
 2. **Prepare MIDI Files**:
@@ -70,8 +69,7 @@ import os
 import time
 import ctypes
 from ctypes import wintypes
-import pyHook
-import pythoncom
+from pynput import keyboard
 
 # Global variables
 stopPumping = False
@@ -79,13 +77,12 @@ user32 = ctypes.WinDLL('user32', use_last_error=True)
 tstart = time.time()
 isPlaying = False
 
-def OnKeyDown(event):
+def OnKeyDown(key):
     global isPlaying
-    if event.Key == "Delete":
+    if key == keyboard.Key.delete:
         isPlaying = not isPlaying
         if isPlaying:
             runMacro()
-    return True
 
 # Define input structures and constants
 # (Keyboard and Mouse input handling omitted for brevity)
@@ -95,11 +92,9 @@ def runMacro():
     # Load song.txt and simulate key presses
     # (Implementation omitted for brevity)
 
-# Hook manager setup
-hm = pyHook.HookManager()
-hm.KeyDown = OnKeyDown
-hm.HookKeyboard()
-pythoncom.PumpMessages()
+# Hook listener setup
+with keyboard.Listener(on_press=OnKeyDown) as listener:
+    listener.join()
 ```
 
 ### `pyMIDI.py`
