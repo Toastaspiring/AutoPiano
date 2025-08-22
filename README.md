@@ -138,4 +138,4 @@ if __name__ == "__main__":
 ## Notes
 
 - Ensure your MIDI files are properly formatted and located in the specified directory.
-- Modify paths and configurations as needed to match your system setup.
+- Modify paths and configurations as needed to match your system setup..
