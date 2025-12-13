@@ -26,39 +26,46 @@ class AutoPianoPlayer:
 
     def _play_loop(self, events):
         print(f"Starting playback from event {self.current_index}...")
-        
-        # Iterate manually using range to track index
-        for i in range(self.current_index, len(events)):
-            if self.stop_signal:
-                print("\n[Paused]")
-                return # Thread ends, state preserved in self.current_index
+        try:
+            # Iterate manually using range to track index
+            for i in range(self.current_index, len(events)):
+                if self.stop_signal:
+                    print("\n[Paused]")
+                    return # Thread ends, state preserved in self.current_index
+                
+                self.current_index = i
+                wait_time, action, char = events[i]
+                
+                if wait_time > 0:
+                    # Sleep in small chunks to allow interrupting
+                    end_time = time.time() + wait_time
+                    while time.time() < end_time:
+                        if self.stop_signal:
+                            break
+                        # Sleep small amount or remainder
+                        time.sleep(min(0.05, end_time - time.time()))
+                
+                if self.stop_signal:
+                    print("\n[Paused]")
+                    return
+                
+                if action == 'down':
+                    # print(f"[DEBUG] Pressing {char}")
+                    press_key(char)
+                    print(f"v{char}", end=' ', flush=True)
+                elif action == 'up':
+                    release_key(char)
+                    print(f"^{char}", end=' ', flush=True)
             
-            self.current_index = i
-            wait_time, action, char = events[i]
+            self.is_playing = False
+            self.current_index = 0 # Reset
+            print("\nPlayback finished.")
             
-            if wait_time > 0:
-                # Sleep in small chunks to allow interrupting
-                end_time = time.time() + wait_time
-                while time.time() < end_time:
-                    if self.stop_signal:
-                        break
-                    # Sleep small amount or remainder
-                    time.sleep(min(0.05, end_time - time.time()))
-            
-            if self.stop_signal:
-                print("\n[Paused]")
-                return
-            
-            if action == 'down':
-                press_key(char)
-                print(f"v{char}", end=' ', flush=True)
-            elif action == 'up':
-                release_key(char)
-                print(f"^{char}", end=' ', flush=True)
-        
-        self.is_playing = False
-        self.current_index = 0 # Reset
-        print("\nPlayback finished.")
+        except Exception as e:
+            import traceback
+            print(f"\n[ERROR] Playback crashed: {e}")
+            traceback.print_exc()
+            self.is_playing = False
 
     def stop(self):
         self.stop_signal = True
