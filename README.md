@@ -9,7 +9,7 @@ A modernized, high-performance rewrite using `ctypes` scan codes for hardware-le
 *   **Documentation**: See [ModernAutoPiano/README.md](./ModernAutoPiano/README.md) for full technical details.
 *   **Download**: check the **[Releases](../../releases)** page for the standalone `.exe`.
 
-## [AutoPiano (Legacy)](./AutoPiano)
+## [OldAutoPiano (Legacy)](./OldAutoPiano)
 
 The original source code. Retained for archival purposes and reference.
 

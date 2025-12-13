@@ -1,18 +1,15 @@
 import sys
 import os
 import threading
+import msvcrt
 from pynput import keyboard
-from midi_parser import parse_midi, load_mapping
+from midi_parser import parse_midi, load_mapping, get_tracks_info
 from player import AutoPianoPlayer
 
 # Configurations
 if getattr(sys, 'frozen', False):
     # PyInstaller mode: sys.executable is the exe path
-    # We assume the config folder is placed next to the exe or bundled.
-    # If bundled with --add-data, it's in sys._MEIPASS
-    # Let's assume we want config EXTERNAL for easy editing, so next to Executable.
     BASE_DIR = os.path.dirname(sys.executable)
-    # If we are in 'dist/ModernAutoPiano', BASE_DIR is that dir.
 else:
     # Normal python mode
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -30,11 +27,68 @@ def generate_scale_events(mapping_str):
     events = []
     print("Generating scale test...")
     for char in mapping_str:
-        # Press
         events.append((0.2, 'down', char))
-        # Release
         events.append((0.1, 'up', char))
     return events
+
+def select_tracks_interactive(tracks):
+    """
+    Interactive console menu to select tracks.
+    tracks: list of dicts {'name': str, 'is_drum': bool}
+    Returns: list of selected indices (integers) or None if all/default.
+    """
+    # Smart Default: Select everything EXCEPT drums
+    selected = set()
+    for i, t in enumerate(tracks):
+        if not t['is_drum']:
+            selected.add(i)
+            
+    # Cursor 0 = Validate
+    # Cursor 1..N = Tracks
+    cursor = 0
+    
+    while True:
+        # Clear screen
+        os.system('cls' if os.name == 'nt' else 'clear')
+        
+        print("--- Smart Track Selector ---")
+        print("auto-selected 'Piano/Melodic' tracks. [Drums] are unselected.")
+        print("Use UP/DOWN to move, ENTER to toggle.")
+        print("-" * 30)
+        
+        # Option 0: Validate
+        pointer = ">" if cursor == 0 else " "
+        print(f"{pointer} [ VALIDATE / PLAY ]")
+        
+        print("-" * 30)
+
+        for i, t in enumerate(tracks):
+            mark = "[*]" if i in selected else "[ ]"
+            pointer = ">" if (cursor - 1) == i else " "
+            drum_tag = " [DRUMS]" if t['is_drum'] else ""
+            print(f"{pointer} {mark} {t['name']}{drum_tag}")
+            
+        # Input handling
+        key = msvcrt.getch()
+        try:
+            if key == b'\xe0': # Special key prefix
+                key = msvcrt.getch()
+                if key == b'H': # Up
+                    cursor = max(0, cursor - 1)
+                elif key == b'P': # Down
+                    cursor = min(len(tracks), cursor + 1)
+            elif key == b'\r': # Enter
+                if cursor == 0:
+                    return list(selected) if selected else None
+                else:
+                    track_idx = cursor - 1
+                    if 0 <= track_idx < len(tracks):
+                        if track_idx in selected:
+                            selected.remove(track_idx)
+                        else:
+                            selected.add(track_idx)
+        except:
+             pass
 
 def main():
     print("=== Modern AutoPiano ===")
@@ -59,8 +113,20 @@ def main():
                 selected_file = files[idx]
                 full_path = os.path.join(MIDI_DIR, selected_file)
                 print(f"\nLoading {selected_file}...")
+                
+                # Interactive Track Selection
+                try:
+                    tracks = get_tracks_info(full_path)
+                    if len(tracks) > 1:
+                        selected_indices = select_tracks_interactive(tracks)
+                    else:
+                        selected_indices = None
+                except Exception as e:
+                    print(f"Error reading tracks: {e}")
+                    selected_indices = None
+
                 mapping = load_mapping(CONFIG_PATH)
-                events = parse_midi(full_path, mapping)
+                events = parse_midi(full_path, mapping, selected_indices)
                 print(f"Loaded {len(events)} note events.")
             else:
                 print("Invalid selection.")

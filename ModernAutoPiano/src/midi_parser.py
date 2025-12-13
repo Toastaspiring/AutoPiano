@@ -7,105 +7,63 @@ def load_mapping(config_path):
         data = json.load(f)
     return data["mapping"]
 
-def parse_midi(midi_file_path, mapping_str):
+def get_tracks_info(midi_file_path):
     """
-    Parses a MIDI file and returns a list of (wait_time, key_char) tuples.
+    Returns a list of dicts: {'name': str, 'is_drum': bool}
     """
     midi = mido.MidiFile(midi_file_path)
-    tempo = 500000  # Default 120 BOM
-    notes = []
-    
-    # We need to linearize the track
-    # mido's 'play()' yields messages with proper delta times converted to seconds
-    # but we want to pre-process to mapped characters.
-    
-    # However, play() blocks. We want to extract.
-    # Let's iterate through all messages in absolute time or just use mido's merge_tracks if available
-    # or iterate tracks and sort.
-    # For simplicity, let's use the legacy approach: linearize with absolute times then sort?
-    # Or better: use mido.MidiFile given it's a generator.
-    
-    # Actually, mido has a helper for this.
-    
-    output_events = []
-    
-    # We need to map MIDI note numbers (21-108) to our mapping string.
-    # The mapping string length is 61 keys usually (C2 to C7 approx).
-    # Legacy code: note - 21.
-    
-    # Merge tracks to a single stream of absolute messages
-    # MidiFile passed to 'for' yields messages in order if we don't mess with it?
-    # Actually, iterating over MidiFile merges tracks automatically.
-    
-    # We want a list of actions:
-    # Action: (wait_time_from_prev, type, key)
-    # type: 'down', 'up'
-    
-    events = []
-    
-    # Track current active notes to ignoring duplicates if necessary
-    # or just straight mapping.
-    
-    # Mido's iteration yields delta time.Perfect.
-    # But filtering tracks might mess up time? No, mido handles it.
-    
-    for msg in midi:
-        # msg.time is delta time (seconds)
+    infos = []
+    for i, track in enumerate(midi.tracks):
+        name = f"Track {i}"
+        is_drum = False
         
-        # We need to preserve time for non-note messages too!
-        # If we skip a message, we must add its time to the next one.
-        # But here we are constructing a timeline list.
-        # So we can just append a 'wait' event or attach time to the next action.
-        
-        delta = msg.time
-        
-        # If the message is Note On/Off
-        event_type = None
-        char = None
-        
-        if msg.type == 'note_on' and msg.velocity > 0:
-            event_type = 'down'
-            note = msg.note
-        elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
-            event_type = 'up'
-            note = msg.note
+        # Scan track
+        for msg in track:
+            if msg.type == 'track_name':
+                name = f"Track {i}: {msg.name}"
             
-        if event_type:
-            # Map note
-            if 21 <= note <= 108:
-                idx = note - 21
-                if 0 <= idx < len(mapping_str):
-                    char = mapping_str[idx]
-            
-            if char:
-                events.append({'delay': delta, 'action': event_type, 'key': char})
-                continue
+            # Check for Channel 10 (drums)
+            # mido channels are 0-15. Channel 10 is index 9.
+            if hasattr(msg, 'channel') and msg.channel == 9:
+                is_drum = True
                 
-        # If we didn't emit an event, we need to add this delta to the NEXT event.
-        # But better: just add a "Wait" event? Or simpler: accumulate.
-        
-        # Accumulation Logic:
-        # If events list is empty, just hold it? No.
-        # If we add an event, we use 'delta'.
-        # If we don't, we add 'delta' to an accumulator.
-        # But we modify the 'delta' of the NEXT event.
-        
-        # Wait, that's complex since we are iterating forward.
-        # Alternative: Just emit "Wait" events?
-        # No, let's accumulate.
-        
-        if events:
-            # Add this delta to the next event we create? 
-            # No, we don't have the next event yet.
-            # We add it to a "pending_time" variable.
-            pass
+        # Heuristic: if name matches "Drum" or "Percussion"
+        if "drum" in name.lower() or "percussion" in name.lower():
+            is_drum = True
             
-    # Let's restart the loop with accumulation
+        infos.append({'name': name, 'is_drum': is_drum})
+    return infos
+
+def parse_midi(midi_file_path, mapping_str, selected_indices=None):
+    """
+    Parses a MIDI file and returns a list of (wait_time, key_char) tuples.
+    selected_indices: List of integers representing track indices to include. If None, all are included.
+    """
+    midi = mido.MidiFile(midi_file_path)
     
+    if selected_indices is None:
+        # Iterate over the file object merges all tracks
+        message_iterator = midi
+    else:
+        # Filter specific tracks
+        valid_indices = [i for i in selected_indices if 0 <= i < len(midi.tracks)]
+        if not valid_indices:
+            # If selection invalid, fall back to all? Or empty?
+            # Let's fallback to all to be safe, or just the first.
+            # actually better to return empty if user selected "nothing"
+            if selected_indices: # User intended to select but failed
+                 print("Warning: Invalid track indices. Playing all.")
+                 message_iterator = midi
+            else:
+                 message_iterator = midi
+        else:
+            tracks_to_merge = [midi.tracks[i] for i in valid_indices]
+            message_iterator = mido.merge_tracks(tracks_to_merge)
+
     processed_events = []
     accumulated_time = 0.0
     
-    for msg in midi:
+    for msg in message_iterator:
         accumulated_time += msg.time
         
         action = None
@@ -136,5 +94,5 @@ def parse_midi(midi_file_path, mapping_str):
                 processed_events.append((accumulated_time, action, char))
                 accumulated_time = 0.0
 
-
     return processed_events
+
