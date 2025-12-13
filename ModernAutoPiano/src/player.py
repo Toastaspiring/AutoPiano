@@ -36,6 +36,8 @@ class AutoPianoPlayer:
                 self.current_index = i
                 wait_time, action, char = events[i]
                 
+                # print(f"DEBUG: Event {i}: {wait_time}, {action}, {char}")
+
                 if wait_time > 0:
                     # Sleep in small chunks to allow interrupting
                     end_time = time.time() + wait_time
@@ -50,7 +52,7 @@ class AutoPianoPlayer:
                     return
                 
                 if action == 'down':
-                    # print(f"[DEBUG] Pressing {char}")
+                    print(f"[DEBUG] Pressing {char}")
                     press_key(char)
                     print(f"v{char}", end=' ', flush=True)
                 elif action == 'up':
