@@ -37,7 +37,17 @@ class AutoPianoPlayer:
             wait_time, action, char = events[i]
             
             if wait_time > 0:
-                time.sleep(wait_time)
+                # Sleep in small chunks to allow interrupting
+                end_time = time.time() + wait_time
+                while time.time() < end_time:
+                    if self.stop_signal:
+                        break
+                    # Sleep small amount or remainder
+                    time.sleep(min(0.05, end_time - time.time()))
+            
+            if self.stop_signal:
+                print("\n[Paused]")
+                return
             
             if action == 'down':
                 press_key(char)

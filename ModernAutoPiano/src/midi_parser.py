@@ -9,13 +9,22 @@ def load_mapping(config_path):
 
 def get_tracks_info(midi_file_path):
     """
-    Returns a list of dicts: {'name': str, 'is_drum': bool}
+    Returns a list of dicts: {'name': str, 'is_drum': bool, 'is_piano': bool, 'instrument': str}
     """
     midi = mido.MidiFile(midi_file_path)
     infos = []
+    
+    # Instruments map (simplified General MIDI)
+    GM_FAMILIES = [
+        "Piano", "Percussion", "Organ", "Guitar", "Bass", "Strings", "Ensemble",
+        "Brass", "Reed", "Pipe", "Synth Lead", "Synth Pad", "Synth FX", "Ethnic",
+        "Percussive", "SFX"
+    ]
+    
     for i, track in enumerate(midi.tracks):
         name = f"Track {i}"
         is_drum = False
+        programs = set()
         
         # Scan track
         for msg in track:
@@ -23,15 +32,50 @@ def get_tracks_info(midi_file_path):
                 name = f"Track {i}: {msg.name}"
             
             # Check for Channel 10 (drums)
-            # mido channels are 0-15. Channel 10 is index 9.
             if hasattr(msg, 'channel') and msg.channel == 9:
                 is_drum = True
+            
+            # Check Program Change
+            if msg.type == 'program_change':
+                programs.add(msg.program)
                 
-        # Heuristic: if name matches "Drum" or "Percussion"
-        if "drum" in name.lower() or "percussion" in name.lower():
+        # Heuristic for drums by name
+        name_lower = name.lower()
+        drum_keywords = ["drum", "percussion", "kit", "ride", "cymbal", "brsh", "toms", "hihat", "crash"]
+        if any(kw in name_lower for kw in drum_keywords):
             is_drum = True
             
-        infos.append({'name': name, 'is_drum': is_drum})
+        # Determine Instrument
+        instrument_label = "Unknown"
+        is_piano = False
+        
+        if is_drum:
+             instrument_label = "Drums"
+        elif programs:
+             # Just take the first one or analyze?
+             # If any program is 0-7, let's call it Piano-like
+             # General MIDI: 0-7 is Piano
+             prog = list(programs)[0] # Take first for label
+             family_idx = prog // 8
+             if 0 <= family_idx < len(GM_FAMILIES):
+                 instrument_label = GM_FAMILIES[family_idx]
+             
+             # Check if ANY program is Piano
+             for p in programs:
+                 if 0 <= p <= 7:
+                     is_piano = True
+                     break
+        else:
+             # No program change? Usually defaults to Piano (0)
+             is_piano = True
+             instrument_label = "Default (Piano)"
+             
+        infos.append({
+            'name': name,
+            'is_drum': is_drum,
+            'is_piano': is_piano,
+            'instrument': instrument_label
+        })
     return infos
 
 def parse_midi(midi_file_path, mapping_str, selected_indices=None):

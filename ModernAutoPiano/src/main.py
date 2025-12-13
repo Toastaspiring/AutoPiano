@@ -31,65 +31,6 @@ def generate_scale_events(mapping_str):
         events.append((0.1, 'up', char))
     return events
 
-def select_tracks_interactive(tracks):
-    """
-    Interactive console menu to select tracks.
-    tracks: list of dicts {'name': str, 'is_drum': bool}
-    Returns: list of selected indices (integers) or None if all/default.
-    """
-    # Smart Default: Select everything EXCEPT drums
-    selected = set()
-    for i, t in enumerate(tracks):
-        if not t['is_drum']:
-            selected.add(i)
-            
-    # Cursor 0 = Validate
-    # Cursor 1..N = Tracks
-    cursor = 0
-    
-    while True:
-        # Clear screen
-        os.system('cls' if os.name == 'nt' else 'clear')
-        
-        print("--- Smart Track Selector ---")
-        print("auto-selected 'Piano/Melodic' tracks. [Drums] are unselected.")
-        print("Use UP/DOWN to move, ENTER to toggle.")
-        print("-" * 30)
-        
-        # Option 0: Validate
-        pointer = ">" if cursor == 0 else " "
-        print(f"{pointer} [ VALIDATE / PLAY ]")
-        
-        print("-" * 30)
-
-        for i, t in enumerate(tracks):
-            mark = "[*]" if i in selected else "[ ]"
-            pointer = ">" if (cursor - 1) == i else " "
-            drum_tag = " [DRUMS]" if t['is_drum'] else ""
-            print(f"{pointer} {mark} {t['name']}{drum_tag}")
-            
-        # Input handling
-        key = msvcrt.getch()
-        try:
-            if key == b'\xe0': # Special key prefix
-                key = msvcrt.getch()
-                if key == b'H': # Up
-                    cursor = max(0, cursor - 1)
-                elif key == b'P': # Down
-                    cursor = min(len(tracks), cursor + 1)
-            elif key == b'\r': # Enter
-                if cursor == 0:
-                    return list(selected) if selected else None
-                else:
-                    track_idx = cursor - 1
-                    if 0 <= track_idx < len(tracks):
-                        if track_idx in selected:
-                            selected.remove(track_idx)
-                        else:
-                            selected.add(track_idx)
-        except:
-             pass
-
 def main():
     print("=== Modern AutoPiano ===")
     print(f"MIDI Directory: {MIDI_DIR}")
@@ -114,16 +55,35 @@ def main():
                 full_path = os.path.join(MIDI_DIR, selected_file)
                 print(f"\nLoading {selected_file}...")
                 
-                # Interactive Track Selection
+                # Auto Track Selection
+                selected_indices = []
                 try:
                     tracks = get_tracks_info(full_path)
-                    if len(tracks) > 1:
-                        selected_indices = select_tracks_interactive(tracks)
-                    else:
-                        selected_indices = None
+                    print("\nAnalyzing tracks...")
+                    
+                    # Log all tracks first
+                    for i, t in enumerate(tracks):
+                         drum_tag = " [DRUMS]" if t['is_drum'] else ""
+                         print(f"  Track {i}: {t['name']} [{t['instrument']}]{drum_tag}")
+
+                    # Select logic: Piano AND Not Drums
+                    # If is_piano is true (Program 0-7 or default), we take it.
+                    for i, t in enumerate(tracks):
+                        if t['is_piano'] and not t['is_drum']:
+                            selected_indices.append(i)
+                    
+                    # Fallback: if no piano found, select everything except drums
+                    if not selected_indices:
+                        print("  > No specific Piano tracks found. Selecting all non-drum tracks.")
+                        for i, t in enumerate(tracks):
+                            if not t['is_drum']:
+                                selected_indices.append(i)
+                                
+                    print(f"\nPlaying Tracks: {selected_indices}")
+                    
                 except Exception as e:
                     print(f"Error reading tracks: {e}")
-                    selected_indices = None
+                    selected_indices = None # Fallback to all
 
                 mapping = load_mapping(CONFIG_PATH)
                 events = parse_midi(full_path, mapping, selected_indices)

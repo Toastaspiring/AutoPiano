@@ -27,7 +27,7 @@ render:
       type: SHOW_NUMBERS
 ui:
   font: Yu Gothic UI
-  lastFile: C:\Users\louis\Documents\AutoPiano\AutoPiano\Midi\PossumAndTaters.mid
+  lastFile: C:\Users\louis\Documents\AutoPiano\Midi\BlueBossa1GM.mid
 updateChecker:
   checkOnStartup: false
   branch: stable
