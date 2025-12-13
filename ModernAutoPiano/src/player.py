@@ -36,7 +36,7 @@ class AutoPianoPlayer:
                 self.current_index = i
                 wait_time, action, char = events[i]
                 
-                # print(f"DEBUG: Event {i}: {wait_time}, {action}, {char}")
+                print(f"[DEBUG] Evt {i}: wait={wait_time:.4f} act={action} key={char}")
 
                 if wait_time > 0:
                     # Sleep in small chunks to allow interrupting
