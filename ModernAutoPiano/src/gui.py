@@ -4,7 +4,8 @@ AutoPiano — Synthesia visualizer, borderless modern UI
 
 import customtkinter as ctk
 import tkinter as tk
-import os, sys, threading, time
+import tkinter.filedialog as fd
+import os, sys, threading, time, shutil
 import mido
 
 from midi_parser import parse_midi, load_mapping, get_tracks_info
@@ -403,7 +404,16 @@ class AutoPianoGUI(ctk.CTk):
             text_color=SUBTEXT,
             command=self._toggle_practice,
         )
-        self.practice_btn.pack(side="left", padx=(0, 12))
+        self.practice_btn.pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            ctrl, text="＋  Import",
+            font=ctk.CTkFont(size=11),
+            corner_radius=20, height=40, width=110,
+            fg_color=SURFACE2, hover_color=SURFACE,
+            text_color=SUBTEXT,
+            command=self._import_midi,
+        ).pack(side="left", padx=(0, 12))
 
         self.lbl_status = tk.Label(ctrl, text="", bg=BG, fg=SUBTEXT,
                                    font=("Segoe UI", 9))
@@ -641,6 +651,24 @@ class AutoPianoGUI(ctk.CTk):
                         (os.path.relpath(full, self.midi_dir), full))
         self.search.set_files(self.all_files)
         self._set_sub(f"{len(self.all_files)} files — use the search bar to begin")
+
+    def _import_midi(self):
+        paths = fd.askopenfilenames(
+            title="Import MIDI files",
+            filetypes=[("MIDI files", "*.mid *.midi"), ("All files", "*.*")],
+        )
+        if not paths:
+            return
+        os.makedirs(self.midi_dir, exist_ok=True)
+        copied = 0
+        for src in paths:
+            dst = os.path.join(self.midi_dir, os.path.basename(src))
+            if os.path.abspath(src) != os.path.abspath(dst):
+                shutil.copy2(src, dst)
+                copied += 1
+        self._scan_midi_files()
+        if copied:
+            self._set_sub(f"Imported {copied} file(s) · {len(self.all_files)} total")
 
     # ── File loading ──────────────────────────────────────────────────────────
 
