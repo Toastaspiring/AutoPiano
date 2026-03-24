@@ -1,14 +1,15 @@
 import time
 import threading
-from pynput import keyboard
 from input_sim import press_key, release_key
 
 class AutoPianoPlayer:
-    def __init__(self):
+    def __init__(self, on_event=None):
         self.is_playing = False
         self.stop_signal = False
         self._thread = None
         self.current_index = 0
+        self.on_event = on_event  # optional callback(action: str, char: str)
+        self.practice_mode = False  # when True, skip key presses (learning mode)
 
     def play(self, events):
         """
@@ -25,47 +26,38 @@ class AutoPianoPlayer:
         self._thread.start()
 
     def _play_loop(self, events):
-        print(f"Starting playback from event {self.current_index}...")
         try:
-            # Iterate manually using range to track index
             for i in range(self.current_index, len(events)):
                 if self.stop_signal:
-                    print("\n[Paused]")
-                    return # Thread ends, state preserved in self.current_index
-                
+                    return
+
                 self.current_index = i
                 wait_time, action, char = events[i]
-                
-                print(f"[DEBUG] Evt {i}: wait={wait_time:.4f} act={action} key={char}")
 
                 if wait_time > 0:
-                    # Sleep in small chunks to allow interrupting
                     end_time = time.time() + wait_time
                     while time.time() < end_time:
                         if self.stop_signal:
                             break
-                        # Sleep small amount or remainder
                         time.sleep(min(0.05, end_time - time.time()))
-                
+
                 if self.stop_signal:
-                    print("\n[Paused]")
                     return
-                
-                if action == 'down':
-                    print(f"[DEBUG] Pressing {char}")
-                    press_key(char)
-                    print(f"v{char}", end=' ', flush=True)
-                elif action == 'up':
-                    release_key(char)
-                    print(f"^{char}", end=' ', flush=True)
-            
+
+                if not self.practice_mode:
+                    if action == 'down':
+                        press_key(char)
+                    elif action == 'up':
+                        release_key(char)
+
+                if self.on_event:
+                    self.on_event(action, char)
+
             self.is_playing = False
-            self.current_index = 0 # Reset
-            print("\nPlayback finished.")
-            
+            self.current_index = 0
+
         except Exception as e:
             import traceback
-            print(f"\n[ERROR] Playback crashed: {e}")
             traceback.print_exc()
             self.is_playing = False
 
