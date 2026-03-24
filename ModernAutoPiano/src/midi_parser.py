@@ -1,6 +1,5 @@
 import mido
 import json
-import os
 
 def load_mapping(config_path):
     with open(config_path, 'r') as f:
@@ -86,23 +85,24 @@ def parse_midi(midi_file_path, mapping_str, selected_indices=None):
     midi = mido.MidiFile(midi_file_path)
     
     if selected_indices is None:
-        # Iterate over the file object merges all tracks
+        # Iterate over the file object — mido converts ticks → seconds automatically
         message_iterator = midi
     else:
-        # Filter specific tracks
         valid_indices = [i for i in selected_indices if 0 <= i < len(midi.tracks)]
         if not valid_indices:
-            # If selection invalid, fall back to all? Or empty?
-            # Let's fallback to all to be safe, or just the first.
-            # actually better to return empty if user selected "nothing"
-            if selected_indices: # User intended to select but failed
-                 print("Warning: Invalid track indices. Playing all.")
-                 message_iterator = midi
-            else:
-                 message_iterator = midi
+            message_iterator = midi
         else:
-            tracks_to_merge = [midi.tracks[i] for i in valid_indices]
-            message_iterator = mido.merge_tracks(tracks_to_merge)
+            # Build a temporary MidiFile so that mido's __iter__ handles the
+            # tick→second conversion (including tempo changes) correctly.
+            # merge_tracks() alone returns raw tick-based times — wrong for playback.
+            tmp = mido.MidiFile(type=1, ticks_per_beat=midi.ticks_per_beat)
+            # Always include track 0 (tempo / time-signature messages) so the
+            # conversion is accurate, unless it's already selected.
+            if midi.tracks and 0 not in valid_indices:
+                tmp.tracks.append(midi.tracks[0])
+            for i in valid_indices:
+                tmp.tracks.append(midi.tracks[i])
+            message_iterator = tmp
 
     processed_events = []
     accumulated_time = 0.0

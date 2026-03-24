@@ -659,16 +659,26 @@ class AutoPianoGUI(ctk.CTk):
         )
         if not paths:
             return
-        os.makedirs(self.midi_dir, exist_ok=True)
-        copied = 0
+        try:
+            os.makedirs(self.midi_dir, exist_ok=True)
+        except PermissionError:
+            self._set_sub("Error: no write access to Midi folder")
+            return
+        copied, errors = 0, 0
         for src in paths:
             dst = os.path.join(self.midi_dir, os.path.basename(src))
-            if os.path.abspath(src) != os.path.abspath(dst):
-                shutil.copy2(src, dst)
-                copied += 1
+            try:
+                if os.path.abspath(src) != os.path.abspath(dst):
+                    shutil.copy2(src, dst)
+                    copied += 1
+            except Exception:
+                errors += 1
         self._scan_midi_files()
         if copied:
-            self._set_sub(f"Imported {copied} file(s) · {len(self.all_files)} total")
+            msg = f"Imported {copied} file(s) · {len(self.all_files)} total"
+            if errors:
+                msg += f" ({errors} failed)"
+            self._set_sub(msg)
 
     # ── File loading ──────────────────────────────────────────────────────────
 
