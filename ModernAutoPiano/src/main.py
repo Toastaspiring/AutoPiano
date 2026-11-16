@@ -3,7 +3,7 @@ import os
 import threading
 import msvcrt
 from pynput import keyboard
-from midi_parser import parse_midi, load_mapping, get_tracks_info
+from midi_parser import parse_midi, load_mapping, get_tracks_info, best_transpose
 from player import AutoPianoPlayer
 
 # Configurations
@@ -86,8 +86,12 @@ def main():
                     selected_indices = None # Fallback to all
 
                 mapping = load_mapping(CONFIG_PATH)
-                events = parse_midi(full_path, mapping, selected_indices)
+                transpose = best_transpose(full_path, mapping, selected_indices)
+                events = parse_midi(full_path, mapping, selected_indices, transpose)
                 print(f"Loaded {len(events)} note events.")
+                if transpose:
+                    print(f"\nTransposed {transpose:+d} semitones so fewer notes need Shift.")
+                    print(f"  -> Set the piano's TRANS to {-transpose:+d} to hear it in the original key.")
             else:
                 print("Invalid selection.")
                 return

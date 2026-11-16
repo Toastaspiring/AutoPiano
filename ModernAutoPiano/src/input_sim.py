@@ -1,5 +1,6 @@
 import ctypes
 import time
+from collections import Counter
 from ctypes import wintypes
 
 # Types
@@ -111,36 +112,121 @@ def get_vk_info(char_in):
         return ord(char_in.upper()), False
     return res & 0xFF, (res >> 8) & 1
 
-def press_key(char_in):
-    if not char_in: return
-    
+SHIFT_VK = 0xA0 # VK_LSHIFT
+SHIFT_SCAN = 0x2A # Scan Code for LShift
+
+# The piano reads the Shift state some time after the key event arrives, and
+# while a song is playing that lag reaches ~100ms. If Shift is already up by
+# then, the black key plays as the white key under it; if Shift goes down too
+# soon after a white key, the white key plays as the black one.
+# Measured in Roblox Got Talent: 30ms gave 83 wrong notes in 30s of Take Five,
+# 100ms gave none.
+SHIFT_HOLD = 0.1 # seconds Shift stays down after the shifted keys go down
+SHIFT_LEAD = 0.1 # seconds between the last plain key and Shift going down
+
+# The game also misses a key that goes up and back down (or down and up) within
+# the same frame, so each key keeps its state at least this long before changing.
+KEY_GAP = 0.04 # seconds
+
+_last_plain_press = 0.0
+
+# Scan code -> number of notes currently holding that physical key.
+# q/Q share one key, and so do re-struck or doubled notes in the MIDI.
+_held = Counter()
+
+# Scan code -> time that key last went down or up
+_last_change = {}
+
+def _wait_for_keys(scans):
+    ready = max((_last_change.get(scan, 0.0) + KEY_GAP for scan in scans), default=0.0)
+    remaining = ready - time.perf_counter()
+    if remaining > 0:
+        time.sleep(remaining)
+
+def _send_key(vk, scan, up):
+    _send_input(vk, scan, KEYEVENTF_SCANCODE | (KEYEVENTF_KEYUP if up else 0))
+    _last_change[scan] = time.perf_counter()
+
+def _lookup(char_in):
     # Check manual map first (Force QWERTY)
     if char_in in QWERTY_MAP:
         scan, needs_shift = QWERTY_MAP[char_in]
         # For Scan Code injection, VK is ignored, usually pass 0
-        vk = 0 
-    else:
-        # Fallback to system layout
-        vk, needs_shift = get_vk_info(char_in)
-        scan = get_scan_code(vk)
-    
-    if needs_shift:
-        shift_vk = 0xA0 # VK_LSHIFT
-        shift_scan = 0x2A # Scan Code for LShift
-        _send_input(shift_vk, shift_scan, KEYEVENTF_SCANCODE)
-        _send_input(vk, scan, KEYEVENTF_SCANCODE)
-        _send_input(shift_vk, shift_scan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP)
-    else:
-        _send_input(vk, scan, KEYEVENTF_SCANCODE)
+        return 0, scan, needs_shift
+    # Fallback to system layout
+    vk, needs_shift = get_vk_info(char_in)
+    return vk, get_scan_code(vk), needs_shift
+
+def press_keys(chars):
+    """
+    Presses several keys as one chord: plain keys first, then every shifted key
+    under a single Shift hold so a chord only pays the Shift delay once.
+    A key that is still held by an earlier note is lifted and pressed again so
+    the game hears the new note; it stays down until its last note is released.
+    """
+    global _last_plain_press
+    plain, shifted, retrigger, chord_scans = [], [], [], set()
+    for char_in in chars:
+        if not char_in: continue
+        vk, scan, needs_shift = _lookup(char_in)
+        _held[scan] += 1
+        if scan in chord_scans:
+            continue # Doubled note, or q and Q in one chord: the key only goes down once
+        chord_scans.add(scan)
+        if _held[scan] > 1:
+            # A press on a key that is already down is ignored by the game
+            retrigger.append((vk, scan))
+        (shifted if needs_shift else plain).append((vk, scan))
+
+    if retrigger:
+        _wait_for_keys(scan for _, scan in retrigger)
+        for vk, scan in retrigger:
+            _send_key(vk, scan, up=True)
+    _wait_for_keys(chord_scans)
+
+    for vk, scan in plain:
+        _send_key(vk, scan, up=False)
+        _last_plain_press = time.perf_counter()
+
+    if not shifted:
+        return
+
+    # Let the game read the plain keys without Shift before it goes down
+    remaining = _last_plain_press + SHIFT_LEAD - time.perf_counter()
+    if remaining > 0:
+        time.sleep(remaining)
+
+    _send_input(SHIFT_VK, SHIFT_SCAN, KEYEVENTF_SCANCODE)
+    for vk, scan in shifted:
+        _send_key(vk, scan, up=False)
+    time.sleep(SHIFT_HOLD)
+    # Release Shift while keeping the Note Keys held down
+    _send_input(SHIFT_VK, SHIFT_SCAN, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP)
+
+def release_keys(chars):
+    lift = []
+    for char_in in chars:
+        if not char_in: continue
+        vk, scan, _ = _lookup(char_in)
+        if _held[scan] == 0:
+            continue # Already lifted by release_all
+        _held[scan] -= 1
+        # Only lift the key once no other note is still using it
+        if _held[scan] == 0:
+            lift.append((vk, scan))
+    _wait_for_keys(scan for _, scan in lift)
+    for vk, scan in lift:
+        _send_key(vk, scan, up=True)
+
+def release_all():
+    """Lifts every key still held, e.g. when playback pauses or ends."""
+    for scan, count in _held.items():
+        if count > 0:
+            _send_key(0, scan, up=True)
+    _held.clear()
+
+def press_key(char_in):
+    press_keys([char_in])
 
 def release_key(char_in):
-    if not char_in: return
-    
-    if char_in in QWERTY_MAP:
-        scan, _ = QWERTY_MAP[char_in]
-        vk = 0
-    else:
-        vk, _ = get_vk_info(char_in)
-        scan = get_scan_code(vk)
-        
-    _send_input(vk, scan, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP)
+    release_keys([char_in])
