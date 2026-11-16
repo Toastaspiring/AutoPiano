@@ -1,17 +1,16 @@
 # AutoPiano
 
-This repository contains two versions of the AutoPiano automation tool.
+Plays MIDI files on Roblox / Virtual Piano style pianos by simulating key presses.
 
-## [ModernAutoPiano](./ModernAutoPiano) (Recommended)
+```bash
+cd ModernAutoPiano
+pip install -r requirements.txt
+python run.py
+```
 
-A modernized, high-performance rewrite using `ctypes` scan codes for hardware-level input simulation.
-*   **Features**: Polyphony, Accurate Timing, Game Compatibility (Roblox/VirtualPiano), "Force QWERTY" mode.
-*   **Documentation**: See [ModernAutoPiano/README.md](./ModernAutoPiano/README.md) for full technical details.
-*   **Download**: check the **[Releases](../../releases)** page for the standalone `.exe`.
+Put your songs in [Midi/](./Midi). If the app prints a TRANS value, set the in-game piano's TRANS to it so the song plays in its original key.
 
-## [OldAutoPiano (Legacy)](./OldAutoPiano)
-
-The original source code. Retained for archival purposes and reference.
+See [ModernAutoPiano/README.md](./ModernAutoPiano/README.md) for technical details.
 
 ---
 *Project maintained by Toastaspiring.*
