@@ -1,5 +1,4 @@
 import ctypes
-import time
 from collections import Counter
 from ctypes import wintypes
 
@@ -115,115 +114,105 @@ def get_vk_info(char_in):
 SHIFT_VK = 0xA0 # VK_LSHIFT
 SHIFT_SCAN = 0x2A # Scan Code for LShift
 
-# The piano reads the Shift state some time after the key event arrives, and
-# while a song is playing that lag reaches ~100ms. If Shift is already up by
-# then, the black key plays as the white key under it; if Shift goes down too
-# soon after a white key, the white key plays as the black one.
-# Measured in Roblox Got Talent: 30ms gave 83 wrong notes in 30s of Take Five,
-# 100ms gave none.
-SHIFT_HOLD = 0.1 # seconds Shift stays down after the shifted keys go down
-SHIFT_LEAD = 0.1 # seconds between the last plain key and Shift going down
+# One physical key carries two notes: 't' on its own and 'T' under Shift. The
+# key can only be in one state, so the two can never be *held* together. But
+# the piano starts a note on key-down and lets it ring, so a whole chord goes
+# out as ONE SendInput call: Windows stamps every event with the same time and
+# the game sees them on a single frame. Inside that batch the black notes are
+# struck first, then the white keys go down and stay down, so notes still
+# sustain for as long as the MIDI holds them.
 
-# The game also misses a key that goes up and back down (or down and up) within
-# the same frame, so each key keeps its state at least this long before changing.
-KEY_GAP = 0.04 # seconds
-
-_last_plain_press = 0.0
-
-# Scan code -> number of notes currently holding that physical key.
-# q/Q share one key, and so do re-struck or doubled notes in the MIDI.
-_held = Counter()
-
-# Scan code -> time that key last went down or up
-_last_change = {}
-
-def _wait_for_keys(scans):
-    ready = max((_last_change.get(scan, 0.0) + KEY_GAP for scan in scans), default=0.0)
-    remaining = ready - time.perf_counter()
-    if remaining > 0:
-        time.sleep(remaining)
-
-def _send_key(vk, scan, up):
-    _send_input(vk, scan, KEYEVENTF_SCANCODE | (KEYEVENTF_KEYUP if up else 0))
-    _last_change[scan] = time.perf_counter()
+def _send_batch(events):
+    """events: a list of (scan_code, is_key_up), delivered as one atomic call."""
+    events = list(events)
+    if not events:
+        return
+    arr = (INPUT * len(events))()
+    for i, (scan, up) in enumerate(events):
+        flags = KEYEVENTF_SCANCODE | (KEYEVENTF_KEYUP if up else 0)
+        arr[i] = INPUT(type=INPUT_KEYBOARD,
+                       ki=KEYBDINPUT(wVk=0, wScan=scan, dwFlags=flags))
+    sent = user32.SendInput(len(events), arr, ctypes.sizeof(INPUT))
+    if sent != len(events):
+        print(f"[InputErr] SendInput sent {sent}/{len(events)}. Error: {ctypes.get_last_error()}")
 
 def _lookup(char_in):
     # Check manual map first (Force QWERTY)
     if char_in in QWERTY_MAP:
-        scan, needs_shift = QWERTY_MAP[char_in]
-        # For Scan Code injection, VK is ignored, usually pass 0
-        return 0, scan, needs_shift
+        return QWERTY_MAP[char_in] # (scan code, needs shift)
     # Fallback to system layout
     vk, needs_shift = get_vk_info(char_in)
-    return vk, get_scan_code(vk), needs_shift
+    return get_scan_code(vk), needs_shift
+
+# Character -> how many notes of the MIDI are sounding it right now
+_sounding = Counter()
+# Scan code -> the character whose key is physically down, if any
+_key_owner = {}
 
 def press_keys(chars):
     """
-    Presses several keys as one chord: plain keys first, then every shifted key
-    under a single Shift hold so a chord only pays the Shift delay once.
-    A key that is still held by an earlier note is lifted and pressed again so
-    the game hears the new note; it stays down until its last note is released.
+    Starts every note of one chord in a single batch, so they share a timestamp.
+    Keys stay down afterwards and sustain until release_keys lifts them. The one
+    exception is a key whose two notes are both in the chord: the black note is
+    struck and left to ring so the white note can hold the key.
     """
-    global _last_plain_press
-    plain, shifted, retrigger, chord_scans = [], [], [], set()
+    shifted, plain, seen = [], [], set()
     for char_in in chars:
-        if not char_in: continue
-        vk, scan, needs_shift = _lookup(char_in)
-        _held[scan] += 1
-        if scan in chord_scans:
-            continue # Doubled note, or q and Q in one chord: the key only goes down once
-        chord_scans.add(scan)
-        if _held[scan] > 1:
-            # A press on a key that is already down is ignored by the game
-            retrigger.append((vk, scan))
-        (shifted if needs_shift else plain).append((vk, scan))
+        if not char_in:
+            continue
+        _sounding[char_in] += 1
+        if char_in in seen:
+            continue # The same note twice in one chord is still one key press
+        seen.add(char_in)
+        scan, needs_shift = _lookup(char_in)
+        (shifted if needs_shift else plain).append((char_in, scan))
 
-    if retrigger:
-        _wait_for_keys(scan for _, scan in retrigger)
-        for vk, scan in retrigger:
-            _send_key(vk, scan, up=True)
-    _wait_for_keys(chord_scans)
+    plain_scans = {scan for _, scan in plain}
+    events = []
 
-    for vk, scan in plain:
-        _send_key(vk, scan, up=False)
-        _last_plain_press = time.perf_counter()
+    # A key that is already down must come up first, either to re-strike its own
+    # note or to free it for the other note sharing it.
+    for scan in dict.fromkeys(scan for _, scan in shifted + plain):
+        if scan in _key_owner:
+            events.append((scan, True))
+            del _key_owner[scan]
 
-    if not shifted:
-        return
+    if shifted:
+        events.append((SHIFT_SCAN, False))
+        for char_in, scan in shifted:
+            events.append((scan, False))
+            if scan in plain_scans:
+                events.append((scan, True)) # Struck and left ringing
+            else:
+                _key_owner[scan] = char_in
+        events.append((SHIFT_SCAN, True))
 
-    # Let the game read the plain keys without Shift before it goes down
-    remaining = _last_plain_press + SHIFT_LEAD - time.perf_counter()
-    if remaining > 0:
-        time.sleep(remaining)
+    for char_in, scan in plain:
+        events.append((scan, False))
+        _key_owner[scan] = char_in
 
-    _send_input(SHIFT_VK, SHIFT_SCAN, KEYEVENTF_SCANCODE)
-    for vk, scan in shifted:
-        _send_key(vk, scan, up=False)
-    time.sleep(SHIFT_HOLD)
-    # Release Shift while keeping the Note Keys held down
-    _send_input(SHIFT_VK, SHIFT_SCAN, KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP)
+    _send_batch(events)
 
 def release_keys(chars):
-    lift = []
+    events = []
     for char_in in chars:
-        if not char_in: continue
-        vk, scan, _ = _lookup(char_in)
-        if _held[scan] == 0:
-            continue # Already lifted by release_all
-        _held[scan] -= 1
-        # Only lift the key once no other note is still using it
-        if _held[scan] == 0:
-            lift.append((vk, scan))
-    _wait_for_keys(scan for _, scan in lift)
-    for vk, scan in lift:
-        _send_key(vk, scan, up=True)
+        if not char_in or _sounding[char_in] == 0:
+            continue
+        _sounding[char_in] -= 1
+        if _sounding[char_in]:
+            continue # Another note of the MIDI is still holding this key
+        scan, _ = _lookup(char_in)
+        if _key_owner.get(scan) == char_in:
+            events.append((scan, True))
+            del _key_owner[scan]
+    _send_batch(events)
 
 def release_all():
-    """Lifts every key still held, e.g. when playback pauses or ends."""
-    for scan, count in _held.items():
-        if count > 0:
-            _send_key(0, scan, up=True)
-    _held.clear()
+    """Lifts Shift and every key still down, e.g. when playback pauses or ends."""
+    events = [(scan, True) for scan in _key_owner] + [(SHIFT_SCAN, True)]
+    _key_owner.clear()
+    _sounding.clear()
+    _send_batch(events)
 
 def press_key(char_in):
     press_keys([char_in])

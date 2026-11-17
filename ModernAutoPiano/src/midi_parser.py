@@ -1,7 +1,6 @@
 import mido
 import json
 import os
-from collections import Counter, defaultdict, deque
 
 def load_mapping(config_path):
     with open(config_path, 'r') as f:
@@ -114,41 +113,6 @@ def best_transpose(midi_file_path, mapping_str, selected_indices=None):
 
     return min(range(-6, 7), key=cost)
 
-def _move_twin_clashes(events, mapping_str):
-    """
-    A black key shares its physical key with the white key below it (q/Q, 1/!),
-    so the two can't sound together: playing one lifts the other. When a note's
-    twin is already down, play the note an octave away on a free key instead, so
-    both ring. Take Five has 76 such clashes after transposing, e.g. A4 + A#4.
-    """
-    index = {c: i for i, c in enumerate(mapping_str)}
-
-    def physical(char):
-        i = index[char]
-        return mapping_str[i - 1] if _is_shifted(char) else char
-
-    down_on = defaultdict(Counter) # physical key -> chars currently down on it
-    played_as = defaultdict(deque) # char from the MIDI -> char actually used, per note still down
-    out = []
-    for wait, action, char in events:
-        actual = char
-        if action == 'down':
-            on_key = down_on[physical(char)]
-            if any(n > 0 and c != char for c, n in on_key.items()):
-                # Move away from the twin: black keys sit above theirs, white keys below
-                for step in ((12, -12) if _is_shifted(char) else (-12, 12)):
-                    j = index[char] + step
-                    if 0 <= j < len(mapping_str) and not any(down_on[physical(mapping_str[j])].values()):
-                        actual = mapping_str[j]
-                        break
-            played_as[char].append(actual)
-            down_on[physical(actual)][actual] += 1
-        elif played_as[char]:
-            actual = played_as[char].popleft()
-            down_on[physical(actual)][actual] -= 1
-        out.append((wait, action, actual))
-    return out
-
 def _load_tracks(midi_file_path, selected_indices):
     original_midi = mido.MidiFile(midi_file_path)
     
@@ -226,5 +190,5 @@ def parse_midi(midi_file_path, mapping_str, selected_indices=None, transpose=0):
                 processed_events.append((accumulated_time, action, char))
                 accumulated_time = 0.0
 
-    return _move_twin_clashes(processed_events, mapping_str)
+    return processed_events
 
