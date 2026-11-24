@@ -12,5 +12,15 @@ Put your songs in [Midi/](./Midi). If the app prints a TRANS value, set the in-g
 
 See [ModernAutoPiano/README.md](./ModernAutoPiano/README.md) for technical details.
 
+## Making songs from sheet music
+
+[SheetToMidi](./SheetToMidi) turns a MuseScore PDF into a MIDI that sounds played by a person (rubato, dynamics, pedal), and can humanize MIDI files you already have:
+
+```bash
+cd SheetToMidi
+pip install -r requirements.txt
+python run.py "path/to/sheet.pdf"
+```
+
 ---
 *Project maintained by Toastaspiring.*
