@@ -11,6 +11,8 @@ What a pianist does that a sequencer doesn't, and what this copies:
 - Legato: melody notes overlap slightly, accompaniment lets go a little early.
 - The sustain pedal is changed just after each new harmony (legato pedalling),
   with a real pedal's travel instead of an on/off switch.
+- Swing tunes swing their eighths, keep steady time like a band does, and lean
+  on beats 2 and 4. Staccato notes are let go early, accents are struck harder.
 
 Notes struck together stay within CHORD_SPREAD of each other, so AutoPiano
 still sends them as one chord (its window is 10 ms).
@@ -107,6 +109,10 @@ class Performer:
         self.end = float(score.end)
         self.measures = [float(m) for m in score.measure_starts]
         self.bar = float(score.beats_per_measure)
+        self.swing = score.swing
+        # A swing tune keeps time with the band: only a little rubato. Straight
+        # music breathes freely up to 100 BPM and steadies as it gets faster.
+        self.rubato = 0.25 if self.swing else max(0.4, min(1.0, (100 / score.tempo) ** 2))
         self._phrases()
         self._tempo_map()
 
@@ -137,7 +143,7 @@ class Performer:
 
     # ---- tempo ----------------------------------------------------------------
     def _tempo_factor(self, b, drift):
-        r = self.style.timing
+        r = self.style.timing * self.rubato
         f = 1.0
         # Section character, blended in over a beat so it never jumps
         a, e, name = self._section_at(b)
@@ -156,8 +162,13 @@ class Performer:
             if float(h0) <= b < float(h1) and sign > 0:
                 f *= 1 + 0.02 * r
         # Final ritardando over the last bar and a half
-        f *= 1 - 0.38 * r * _smooth((b - (self.end - 1.5 * self.bar)) / (1.5 * self.bar)) ** 1.4
-        return f * (1 + drift * r)
+        rit = 0.38 * self.style.timing * (0.3 if self.swing else 1.0)
+        f *= 1 - rit * _smooth((b - (self.end - 1.5 * self.bar)) / (1.5 * self.bar)) ** 1.4
+        # Fermatas: hold on
+        for t0, t1 in self.score.fermatas:
+            if float(t0) <= b < float(t1):
+                f *= 0.45
+        return f * (1 + drift * self.style.timing * self.rubato ** 0.5)
 
     def _tempo_map(self):
         step = 1 / 32
@@ -183,9 +194,19 @@ class Performer:
                 bpm = value
         return bpm
 
+    def _swung(self, b):
+        """Delay offbeat eighths to the swing position (0.5 -> swing)."""
+        i = math.floor(b)
+        f = b - i
+        s = self.swing
+        return i + (f * 2 * s if f <= 0.5 else s + (f - 0.5) * 2 * (1 - s))
+
     def time(self, beat):
         """Seconds at a score position, following the breathing tempo."""
-        x = float(beat) / self.step
+        b = float(beat)
+        if self.swing:
+            b = self._swung(b)
+        x = b / self.step
         i = min(int(x), len(self.grid) - 2)
         return self.grid[i] + (self.grid[i + 1] - self.grid[i]) * (x - i)
 
@@ -248,6 +269,11 @@ class Performer:
 
     def _metric(self, t):
         pos = (t - self._snap_down(t)) % self.bar
+        if self.swing:
+            # Backbeat: 2 and 4 lean, offbeat eighths are pushed a little
+            if abs(pos - round(pos)) < 1e-6:
+                return 3 if round(pos) % 2 else 1
+            return 1 if abs(pos * 2 - round(pos * 2)) < 1e-6 else -3
         if abs(pos) < 1e-6:
             return 4
         if abs(pos - self.bar / 2) < 1e-6 and self.bar >= 4:
@@ -324,6 +350,10 @@ class Performer:
                     v -= 11 * st.dynamics
                 if n.duration > Fraction(1, 2):
                     v += min(4.0, 2 * math.log2(float(n.duration) / 0.5)) * st.dynamics
+                if '^' in n.artic:
+                    v += 12 * st.dynamics
+                elif '>' in n.artic:
+                    v += 8 * st.dynamics
                 v += rng.gauss(0, 3) * st.dynamics
                 on = base_time + o - lo
                 end = self.time(n.start + n.duration)
@@ -336,6 +366,11 @@ class Performer:
                     off = end - rng.gauss(0.02, 0.008) * st.timing
                 if n.duration <= Fraction(1, 4):
                     off = min(off, on + max(0.8 * length, 0.05))
+                if "'" in n.artic or '^' in n.artic:
+                    # Staccato and marcato: let go well before the written end
+                    beat = self.time(n.start + 1) - self.time(n.start)
+                    short = 0.45 if "'" in n.artic else 0.6
+                    off = on + min(length * short, 0.4 * beat) * rng.uniform(0.85, 1.15)
                 played.append(Played(on, max(off, on + 0.04), n.pitch, int(max(12, min(118, round(v)))), n.staff))
 
         # The same key can't be held twice: release before it is struck again
@@ -358,7 +393,7 @@ class Performer:
                 p.off = chord_times[i] + 0.0005
         played = sorted(keep, key=lambda p: p.on)
 
-        pedal = self._pedal(notes) if st.pedal else []
+        pedal = self._pedal(notes) if st.pedal and self.score.pedal_style != 'none' else []
         return played, pedal
 
     # ---- sustain pedal -------------------------------------------------------------

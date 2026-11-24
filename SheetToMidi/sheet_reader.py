@@ -1,8 +1,9 @@
 """
 Reads a MuseScore PDF export back into notes.
 
-MuseScore draws every music symbol as a character of its Leland/Bravura font
-(SMuFL code points), and stems, beams, ties and staff lines as vector paths. So
+MuseScore draws every music symbol as a character of its music font (SMuFL code
+points: Leland or Bravura in MuseScore 4, Emmentaler, named "MScore", in
+MuseScore 3), and stems, beams, ties and staff lines as vector paths. So
 instead of guessing from pixels like OMR software does, the score can be read
 exactly: pitch from where a notehead sits on its staff, rhythm from its head,
 beams, flags, dots and tuplets, and timing from how events line up in a measure.
@@ -29,6 +30,10 @@ CLEFS = {0xE050: 4 * 7 + 4, 0xE052: 3 * 7 + 4, 0xE053: 5 * 7 + 4,  # G4 line, 8v
 TIME_DIGITS = {0xE080 + i: i for i in range(10)}
 DYNAMICS = {0xE52A: 'ppp', 0xE52B: 'pp', 0xE520: 'p', 0xE52C: 'mp', 0xE52D: 'mf',
             0xE522: 'f', 0xE52F: 'ff', 0xE530: 'fff'}
+DYNAMIC_LETTERS = {0xE520: 'p', 0xE521: 'm', 0xE522: 'f'}  # MuseScore 3 spells "mf" letter by letter
+ARTICULATIONS = {0xE4A0: '>', 0xE4A1: '>', 0xE4A2: "'", 0xE4A3: "'", 0xE4A6: "'", 0xE4A7: "'",
+                 0xE4AC: '^', 0xE4AD: '^'}  # above / below the note
+OTTAVAS = {0xE510: 12, 0xE514: 24, 0xE517: 36}  # the "8", "15", "22" of 8va/8vb lines
 PEDAL_DOWN = 0xE650
 TUPLET_RATIOS = {2: Fraction(3, 2), 3: Fraction(2, 3), 5: Fraction(4, 5), 6: Fraction(4, 6), 7: Fraction(4, 7)}
 
@@ -74,6 +79,7 @@ class Event:
     stem_x: float = None
     glyph: Glyph = None  # the rest symbol
     dots: int = 0
+    artic: str = ''
     tuplet: Fraction = Fraction(1)
     onset: Fraction = None  # quarter notes from the start of its measure
 
@@ -97,6 +103,7 @@ class Note:
     chord: int        # notes on one stem share this id
     diatonic: int = 0
     tie_next: bool = False
+    artic: str = ''   # "'" staccato, '>' accent, '^' marcato
 
 
 @dataclass
@@ -115,6 +122,9 @@ class Score:
     sections: list = field(default_factory=list)  # (time, 'CHORUS')
     pedal: list = field(default_factory=list)     # (start, end) of printed Ped. brackets
     pedal_sim: list = field(default_factory=list)  # times of "sim." (keep pedalling that way)
+    pedal_style: str = 'auto'  # 'none' for music played without sustain pedal
+    swing: float = 0.0  # where a swung offbeat eighth falls in the beat (0.5-0.67), 0 = straight
+    fermatas: list = field(default_factory=list)  # (start, end) of held notes
     systems: list = field(default_factory=list)   # index of the first measure of each system
     warnings: list = field(default_factory=list)
 
@@ -134,7 +144,8 @@ class _Page:
         self.glyphs = []  # music font characters
         self.text = []    # (font, size, char, x, y, right edge)
         for tr in page.get_texttrace():
-            music = ('Leland' in tr['font'] or 'Bravura' in tr['font']) and 'Text' not in tr['font']
+            font = tr['font'].split('+')[-1]
+            music = any(f in font for f in ('Leland', 'Bravura', 'MScore')) and 'Text' not in font
             for ch in tr['chars']:
                 (x, y), bbox = ch[2], ch[3]
                 if music:
@@ -143,15 +154,26 @@ class _Page:
                     self.text.append((tr['font'], tr['size'], chr(ch[0]), x, y, bbox[2]))
 
         self.hlines, self.vlines, self.beams, self.curves, self.paths = [], [], [], [], []
+        self.dashes = []  # dashed horizontal lines (8va), (x0, x1, y)
+        self.slants = []  # lone slanted lines: MuseScore 3 hairpins, (ax, ay, bx, by)
         for d in page.get_drawings():
             items = d['items']
             width = d.get('width') or 0
             if d['type'] == 's' and len(items) == 1 and items[0][0] == 'l':
                 a, b = items[0][1], items[0][2]
-                if abs(a.y - b.y) < 0.01:
+                if d.get('dashes') not in (None, '[] 0'):
+                    if abs(a.y - b.y) < 0.01:
+                        self.dashes.append((min(a.x, b.x), max(a.x, b.x), a.y))
+                elif abs(a.y - b.y) < 0.01:
                     self.hlines.append((min(a.x, b.x), max(a.x, b.x), a.y, width))
                 elif abs(a.x - b.x) < 0.01:
                     self.vlines.append((a.x, min(a.y, b.y), max(a.y, b.y), width))
+                else:
+                    self.slants.append((a.x, a.y, b.x, b.y))
+            elif d['type'] == 's' and len(items) == 5 and all(i[0] == 'l' and abs(i[1].y - i[2].y) < 0.01 for i in items):
+                # MuseScore 3 draws a staff's five lines as one path
+                for _, a, b in items:
+                    self.hlines.append((min(a.x, b.x), max(a.x, b.x), a.y, width))
             elif d['type'] == 'f' and len(items) == 4 and all(i[0] == 'l' for i in items):
                 # Beam: a filled parallelogram; keep its centre line
                 pts = [i[1] for i in items]
@@ -160,7 +182,8 @@ class _Page:
                 right = [p.y for p in pts if x1 - p.x < 0.5]
                 if x1 - x0 > 1 and left and right:
                     self.beams.append((x0, x1, sum(left) / len(left), sum(right) / len(right)))
-            elif d['type'] == 'fs' and items and items[0][0] == 'c':
+            elif (d['type'] == 'fs' and items and items[0][0] == 'c'
+                  or d['type'] == 'f' and len(items) == 2 and all(i[0] == 'c' for i in items)):
                 # Tie or slur: a filled crescent; keep its two tips
                 p0, p1 = items[0][1], items[0][4]
                 if p0.x > p1.x:
@@ -237,9 +260,10 @@ class _Reader:
 
         glyphs = [g for g in p.glyphs if sys_top < g.y < sys_bottom and x0 - 5 < g.x < x1 + 5]
         heads = [g for g in glyphs if g.code in HEADS and g.size > 12]  # skips grace/cue notes
-        stems = [v for v in p.vlines if v[3] < 0.6 and v[2] - v[1] > 2 * sp - 1
+        # Stems are thinner than barlines: 0.43 vs 0.77 in MuseScore 4, 0.65 vs 0.8 in MuseScore 3
+        stems = [v for v in p.vlines if v[3] < 0.72 and v[2] - v[1] > 2 * sp - 1
                  and x0 < v[0] < x1 and sys_top < v[1] and v[2] < sys_bottom]
-        bars = sorted(v[0] for v in p.vlines if v[3] >= 0.6 and x0 + 2 < v[0] < x1 + 1
+        bars = sorted(v[0] for v in p.vlines if v[3] >= 0.72 and x0 + 2 < v[0] < x1 + 1
                       and v[2] - v[1] > 3 * sp and sys_top < v[1] and v[2] < sys_bottom)
         beams = [b for b in p.beams if x0 < b[0] < x1 and sys_top < (b[2] + b[3]) / 2 < sys_bottom]
 
@@ -257,6 +281,8 @@ class _Reader:
         events += [Event(staff_of(g.y), g.x, RESTS[g.code], glyph=g) for g in glyphs if g.code in RESTS]
         self._dots(events, glyphs, sp)
         self._tuplets(p, events, staves, beams, x0, x1, sys_top, sys_bottom)
+        self._articulations(events, glyphs, staff_of, sp)
+        ottavas = self._ottavas(p, glyphs, staves, staff_of, x0, x1, sys_top, sys_bottom)
 
         # The key signature is the run of accidentals straight after the clef that
         # starts the system; every other accidental belongs to the head to its right
@@ -316,7 +342,7 @@ class _Reader:
             self._time_measure(ev, length)
             self.columns.append((mx0, mx1, start, length, sorted((e.x, e.onset) for e in ev)))
             self.melody_cols += [((e.x + e.heads[0].x1) / 2, start + e.onset) for e in ev if e.staff == 0 and e.heads]
-            self._emit(ev, start, diatonic)
+            self._emit(ev, start, diatonic, ottavas)
             self.measure += 1
 
         self._ties(p, events, sp, x1)
@@ -434,6 +460,45 @@ class _Reader:
             for e in members:
                 e.tuplet = ratio
 
+    @staticmethod
+    def _articulations(events, glyphs, staff_of, sp):
+        """Staccato dots and accents sit centred over or under the chord they belong to."""
+        chords = [e for e in events if not e.is_rest]
+        for g in glyphs:
+            if g.code not in ARTICULATIONS:
+                continue
+            cx, s = (g.x + g.x1) / 2, staff_of(g.y)
+
+            def gap(e):
+                return max(min(h.y for h in e.heads) - g.y, g.y - max(h.y for h in e.heads), 0)
+            near = [e for e in chords if e.staff == s and min(h.x for h in e.heads) - 0.5 < cx < max(h.x1 for h in e.heads) + 0.5
+                    and gap(e) < 4.5 * sp]
+            if near:
+                e = min(near, key=gap)
+                if ARTICULATIONS[g.code] not in e.artic:
+                    e.artic += ARTICULATIONS[g.code]
+
+    def _ottavas(self, p, glyphs, staves, staff_of, x0, x1, sys_top, sys_bottom):
+        """8va / 8vb lines: (staff, x from, x to, semitones). The number starts a
+        dashed line that runs, with a hook at its end, over the notes it moves."""
+        marks = [(g.code, g.x, g.x1, g.y) for g in glyphs if g.code in OTTAVAS]
+        marks += [(ord(ch), x, xr, y) for font, size, ch, x, y, xr in p.text if ord(ch) in OTTAVAS]
+        spans = []
+        for code, gx, gx1, gy in marks:
+            if not (sys_top < gy < sys_bottom and x0 - 5 < gx < x1):
+                continue
+            s = staff_of(gy)
+            sp = staves[s].sp
+            end = None
+            for dx0, dx1, dy in sorted(p.dashes):
+                if abs(dy - gy) < 2 * sp and gx < dx0 < (end if end is not None else gx1) + 2 * sp:
+                    end = dx1
+            if end is None:
+                end = x1
+                self.score.warnings.append(f'measure ~{self.measure + 1}: 8va with no line, taken to the end of the system')
+            spans.append((s, gx - 1, end, OTTAVAS[code] * (1 if gy < staves[s].top else -1)))
+        return spans
+
     # ---- timing --------------------------------------------------------------
     @staticmethod
     def _columns_to_onsets(ev, tol):
@@ -470,7 +535,7 @@ class _Reader:
                 if end != length:
                     self.score.warnings.append(f'measure {self.measure + 1} staff {s + 1}: adds up to {end} beats, not {length}')
 
-    def _emit(self, ev, start, diatonic):
+    def _emit(self, ev, start, diatonic, ottavas):
         written = [{}, {}]  # accidentals in force in this measure, per staff position
         for e in sorted(ev, key=lambda e: (e.onset, e.x)):
             if e.is_rest:
@@ -481,8 +546,9 @@ class _Reader:
                 if hasattr(h, 'alter'):
                     written[e.staff][d] = h.alter
                 alter = written[e.staff].get(d, self.key[e.staff].get(d % 7, 0))
-                h.note = Note(start + e.onset, e.duration, diatonic_to_midi(d, alter), e.staff,
-                              self.measure, e.up, self.chord_id, d)
+                shift = sum(n for s, a, b, n in ottavas if s == e.staff and a < h.x < b)
+                h.note = Note(start + e.onset, e.duration, diatonic_to_midi(d, alter) + shift, e.staff,
+                              self.measure, e.up, self.chord_id, d + shift // 12 * 7, artic=e.artic)
                 self.score.notes.append(h.note)
 
     def _ties(self, p, events, sp, x1):
@@ -528,13 +594,32 @@ class _Reader:
         for g in glyphs:
             if g.code in DYNAMICS:
                 score.dynamics.append((self._time_at((g.x + g.x1) / 2, snap=True), DYNAMICS[g.code]))
-        for w, segs in p.paths:
-            if 0.48 < w < 0.6:
-                (ax, ay, bx, by), _ = segs
-                if sys_top < ay < sys_bottom and x0 - 5 < min(ax, bx) < x1:
-                    lo, hi = sorted((ax, bx))
-                    # Both lines leave from the narrow end: on the left it opens up (cresc.)
-                    score.hairpins.append((self._time_at(lo), self._time_at(hi), 1 if _near(bx, lo, 1) else -1))
+        words = []  # MuseScore 3: dynamics as separate letters of its text font
+        for font, size, ch, x, y, xr in sorted(p.text, key=lambda t: t[3]):
+            if ord(ch) in DYNAMIC_LETTERS and sys_top < y < sys_bottom and x0 - 5 < x < x1:
+                if words and abs(words[-1][3] - y) < 1 and x - words[-1][2] < 2:
+                    words[-1][0] += DYNAMIC_LETTERS[ord(ch)]
+                    words[-1][2] = xr
+                else:
+                    words.append([DYNAMIC_LETTERS[ord(ch)], x, xr, y])
+        for text, x, xr, y in words:
+            if text in DYNAMICS.values():
+                score.dynamics.append((self._time_at((x + xr) / 2, snap=True), text))
+
+        # Hairpins: both lines leave from the narrow end; on the left it opens up (cresc.)
+        wedges = [segs for w, segs in p.paths if 0.48 < w < 0.6]
+        slants = [(ax, ay, bx, by) if ax < bx else (bx, by, ax, ay) for ax, ay, bx, by in p.slants]
+        for i, a in enumerate(slants):  # MuseScore 3: two loose lines meeting at one end
+            for b in slants[i + 1:]:
+                if _near(a[0], b[0], 0.5) and _near(a[2], b[2], 0.5):
+                    if _near(a[1], b[1], 0.5):
+                        wedges.append(((a[2], a[3], a[0], a[1]), b))
+                    elif _near(a[3], b[3], 0.5):
+                        wedges.append((a, b))
+        for (ax, ay, bx, by), _ in wedges:
+            if sys_top < ay < sys_bottom and x0 - 5 < min(ax, bx) < x1:
+                lo, hi = sorted((ax, bx))
+                score.hairpins.append((self._time_at(lo), self._time_at(hi), 1 if _near(bx, lo, 1) else -1))
 
         # Chord symbols (sans-serif) and boxed section labels (bold) above the upper staff
         words = []
@@ -590,26 +675,33 @@ class _Reader:
 
     def finish(self):
         score = self.score
-        # Tied notes become one long note
-        by_line = {}
-        for n in sorted(score.notes, key=lambda n: n.start):
-            by_line.setdefault((n.staff, n.diatonic), []).append(n)
-        merged = set()
-        for seq in by_line.values():
-            for i, n in enumerate(seq):
-                if id(n) in merged:
-                    continue
-                cur = n
-                while cur.tie_next:
-                    nxt = next((m for m in seq[i + 1:] if m.start == n.start + n.duration and id(m) not in merged), None)
-                    if nxt is None:
-                        score.warnings.append(f'measure {cur.measure + 1}: tie on pitch {n.pitch} leads to no note')
-                        break
-                    n.duration += nxt.duration
-                    merged.add(id(nxt))
-                    cur = nxt
-                n.tie_next = False
-        score.notes = sorted((n for n in score.notes if id(n) not in merged), key=lambda n: (n.start, n.staff, n.pitch))
+        merge_ties(score)
         score.lyrics = sorted(set(score.lyrics))
+        # No pedal marks but plenty of staccato: it is meant to be played dry
+        if not score.pedal and not score.pedal_sim and sum("'" in n.artic for n in score.notes) > len(score.notes) / 10:
+            score.pedal_style = 'none'
         for lst in (score.dynamics, score.harmony, score.sections, score.pedal, score.hairpins):
             lst.sort()
+
+
+def merge_ties(score):
+    """Tied notes become one long note."""
+    by_line = {}
+    for n in sorted(score.notes, key=lambda n: n.start):
+        by_line.setdefault((n.staff, n.diatonic), []).append(n)
+    merged = set()
+    for seq in by_line.values():
+        for i, n in enumerate(seq):
+            if id(n) in merged:
+                continue
+            cur = n
+            while cur.tie_next:
+                nxt = next((m for m in seq[i + 1:] if m.start == n.start + n.duration and id(m) not in merged), None)
+                if nxt is None:
+                    score.warnings.append(f'measure {cur.measure + 1}: tie on pitch {n.pitch} leads to no note')
+                    break
+                n.duration += nxt.duration
+                merged.add(id(nxt))
+                cur = nxt
+            n.tie_next = False
+    score.notes = sorted((n for n in score.notes if id(n) not in merged), key=lambda n: (n.start, n.staff, n.pitch))

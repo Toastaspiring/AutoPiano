@@ -3,6 +3,7 @@ Make a MIDI file that sounds like a person playing it.
 
     python run.py sheet.pdf             # MuseScore PDF -> Midi/<name>.mid
     python run.py song.mid              # robotic MIDI  -> <name> (humanized).mid
+    python run.py scores/charleston.txt # a score typed out by hand (for scanned sheets)
     python run.py sheet.pdf --plain     # exact notes, no feel (to check the reading)
 """
 import argparse
@@ -16,7 +17,7 @@ MIDI_DIR = Path(__file__).resolve().parent.parent / 'Midi'
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('input', help='a MuseScore PDF, or a MIDI file to humanize')
+    ap.add_argument('input', help='a MuseScore PDF, a text score, or a MIDI file to humanize')
     ap.add_argument('-o', '--output', help='where to write the MIDI file')
     ap.add_argument('--seed', type=int, help='same seed, same performance (default: a new one each run)')
     ap.add_argument('--timing', type=float, default=1.0, help='how loose the timing is (0 = metronome, 1 = default)')
@@ -31,12 +32,16 @@ def main():
         from sheet_reader import read_pdf
         score = read_pdf(src)
         out = Path(args.output) if args.output else MIDI_DIR / f'{src.stem}{" (plain)" if args.plain else ""}.mid'
+    elif src.suffix.lower() == '.txt':
+        from text_reader import read_text
+        score = read_text(src)
+        out = Path(args.output) if args.output else MIDI_DIR / f'{score.title or src.stem}{" (plain)" if args.plain else ""}.mid'
     elif src.suffix.lower() in ('.mid', '.midi'):
         from midi_reader import read_midi
         score = read_midi(src)
         out = Path(args.output) if args.output else src.with_name(f'{src.stem} ({"plain" if args.plain else "humanized"}).mid')
     else:
-        sys.exit('Give a .pdf exported from MuseScore or a .mid file.')
+        sys.exit('Give a .pdf exported from MuseScore, a .txt score or a .mid file.')
     if args.tempo:
         scale = args.tempo / score.tempo
         score.tempo = args.tempo

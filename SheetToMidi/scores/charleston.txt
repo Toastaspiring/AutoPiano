@@ -1,0 +1,384 @@
+# Charleston (Cecil Mack & Jimmy Johnson, arr. Paul Severson): the piano part
+# of the big-band chart, hand-transcribed from the scanned Piano/Conductor pages.
+#
+# Notes are written at concert pitch with their real accidentals (the key is
+# Bb: write Bb and Eb, a plain E or B is a natural). Dotted-eighth + sixteenth
+# figures are written as straight eighths; "swing" does the rest.
+#
+# Bars 37-66 say "comp ad lib" over whole-note chords: they are written out here
+# as two-feel comping (bass on 1 and 3, chords on 2 and 4) on those chords.
+# Bar 20's left hand is cut off in the scan; it follows bars 10 and 12.
+
+title Charleston (piano)
+tempo 190
+time 4/4
+swing 0.6
+pedal none
+# Intro, head, one solo chorus, last-time ending, D.S. to the coda sign, coda
+order 1-36 37-66 69-72 5-34 73-84
+
+bar 1
+section INTRO
+chords Bb@0
+dyn mf@0
+hairpin -1 0 16
+R D4+Bb4:1' r:.5 D4+Bb4:.5' r:2
+L Bb2+F3:1' r:.5 Bb2+F3:.5' r:2
+bar 2
+R = 1
+L = 1
+bar 3
+R = 1
+L = 1
+bar 4
+R = 1
+L = 1
+
+bar 5
+section HEAD
+chords Bb@0
+dyn mp@0
+hairpin 1 0 16
+R D4+F4:1' r:.5 D4+F4:.5>~ D4+F4:2
+L Bb2+F3+Bb3:1' r:.5 Bb2+F3+Bb3:.5>~ Bb2+F3+Bb3:2
+bar 6
+chords D7@0
+R C4+F#4:1' r:.5 C4+F#4:.5>~ C4+F#4:2
+L A2+A3:1' r:.5 A2+A3:.5>~ A2+A3:2
+bar 7
+chords G7@0
+R B3+F4+G4:1' r:.5 B3+F4+G4:.5>~ B3+F4+G4:2
+L G2+D3:1' r:.5 G2+D3:.5>~ G2+D3:2
+bar 8
+chords G7@0
+R = 7
+L G2+D3:1' r:.5 G2+D3:.5>~ G2+D3:1 G1:1^
+bar 9
+chords C7@0
+dyn f@0
+R r:1 Bb3+E4+G4:1' r:1 Bb3+E4+G4:1'
+L C2+C3:1' r:1 C2:1' r:1
+bar 10
+chords F7@0
+R r:1 C4+Eb4+A4:1' r:1 C4+Eb4+A4:1'
+L F2:1' r:1 F2+F3:1' Eb2+Eb3:1'
+bar 11
+chords Bb/D@0 Dbdim@2
+R r:1 F4+G4+Bb4:1' r:1 E4+G4+Bb4:1'
+L D2+D3:1' r:1 Db2+Db3:1' r:1
+bar 12
+chords F7/C@0 F7@2
+hairpin -1 1 3
+R r:1 C4+Eb4+A4:1' r:1 C4+Eb4+A4:1'
+L C2+C3:1' r:1 F2:1' r:1
+
+bar 13
+chords Bb@0
+dyn mp@0
+hairpin 1 0 16
+R = 5
+L = 5
+bar 14
+chords D7@0
+R = 6
+L = 6
+bar 15
+chords G7@0
+R = 7
+L = 7
+bar 16
+chords C9@0
+R Bb3+D4+E4+G4:1' r:.5 Bb3+D4+E4+G4:.5>~ Bb3+D4+E4+G4:2
+L C2:1' r:.5 C2:.5>~ C2:1 E2:1'
+bar 17
+chords Dm@0
+dyn f@0
+R r:1 A3+D4+F4:1' r:1 A3+D4+F4:1'
+L D2:1' r:1 A2:1' r:1
+bar 18
+chords A7@0
+R r:1 C#4+G4:1' r:1 C#4+G4:1'
+L E2:1' r:1 A2:1' A1:1'
+bar 19
+chords D7@0
+R r:1 C4+F#4+A4:1' r:1 C4+F#4+A4:1'
+L D2:1' r:1 D2:1' r:1
+bar 20
+chords F7@0
+hairpin -1 1 3
+R r:1 C4+Eb4+A4:1' r:1 C4+Eb4+A4:1'
+L F2:1' r:1 F2:1' F2:1'
+
+bar 21
+chords Bb@0
+dyn mp@0
+hairpin 1 0 16
+R = 5
+L = 5
+bar 22
+chords D7@0
+R = 6
+L = 6
+bar 23
+chords G7@0
+R = 7
+L = 7
+bar 24
+chords G7@0
+R = 7
+L G2+D3:1' r:.5 G2+D3:.5>~ G2+D3:1 G2:1^
+bar 25
+chords C7@0
+dyn f@0
+R = 9
+L = 9
+bar 26
+chords F7@0
+R = 10
+L = 10
+bar 27
+chords Bb/D@0 Dbdim@2
+R = 11
+L = 11
+bar 28
+chords F7/C@0 F7@2
+hairpin -1 1 3
+R = 12
+L = 12
+
+bar 29
+chords Bb@0
+dyn mp@0
+hairpin 1 0 16
+R D4+F4+Bb4:1' r:.5 D4+F4+Bb4:.5>~ D4+F4+Bb4:2
+L Bb1+Bb2:1' r:.5 Bb1+Bb2:.5>~ Bb1+Bb2:1 A1+A2:1
+bar 30
+chords Bb/Ab@0
+R D4+F4+Bb4:1 D4+F4+C5:1~ D4+F4+C5:1 D4+F4+C5:1'
+L Ab1+Ab2:3 Ab1+Ab2:1
+bar 31
+chords Eb/G@0
+R Bb3+Eb4+Bb4:1' r:.5 Bb3+Eb4+Bb4:.5>~ Bb3+Eb4+Bb4:2
+L G1+G2:1' r:.5 G1+G2:.5>~ G1+G2:1 G1+G2:1
+bar 32
+chords Ebm/Gb@0
+R Bb3+Eb4+Bb4:1' Bb3+Eb4+Bb4:2 Bb3+Eb4+Bb4:1'
+L Gb1+Gb2:1.5 Gb1+Gb2:.5>~ Gb1+Gb2:1 Gb1+Gb2:1
+bar 33
+chords Bb6@0 Dbdim@3
+dyn f@0
+R D4+F4+Bb4:1' D4+F4+Bb4:2 Bb3+E4+G4:1
+L F2+F3:2 D2+D3:1 Db2+Db3:1
+bar 34
+chords F7/C@0 F7@2
+R A3+Eb4+F4:1' A3+Eb4+F4:2 A3+Eb4+F4:1'
+L C2+C3:2 F2+F3:2
+bar 35
+chords Bb@0
+R Bb3+D4+F4:1' r:3
+L Bb2+F3:1' r:1 Eb2+F3:2~
+bar 36
+R r:4
+L Eb2+F3:4
+
+# Solo chorus: comping in two
+bar 37
+section SOLOS
+chords Bb@0
+dyn mp@0
+R r:1 D4+F4+Bb4:1' r:1 D4+F4+Bb4:1'
+L Bb2:1' r:1 F2:1' r:1
+bar 38
+chords D7/A@0
+R r:1 C4+F#4+A4:1' r:1 C4+F#4+A4:1'
+L A2:1' r:1 A2:1' r:1
+bar 39
+chords G7@0
+R r:1 B3+F4+G4:1' r:1 B3+F4+G4:1'
+L G2:1' r:1 D2:1' r:1
+bar 40
+chords G7@0
+R = 39
+L = 39
+bar 41
+chords C9@0
+R r:1 Bb3+D4+E4:1' r:1 Bb3+D4+E4:1'
+L C3:1' r:1 G2:1' r:1
+bar 42
+chords F13@0
+R r:1 A3+D4+Eb4:1' r:1 A3+D4+Eb4:1'
+L F2:1' r:1 F2:1' Eb2:1'
+bar 43
+chords Bb6/D@0 Dbdim@2
+R r:1 F4+G4+Bb4:1' r:1 E4+G4+Bb4:1'
+L D2:1' r:1 Db2:1' r:1
+bar 44
+chords F7/C@0 F7@2
+R r:1 A3+Eb4+F4:1' r:1 C4+Eb4+A4:1'
+L C2:1 Eb2:1 F2:1 A2:1
+bar 45
+chords Bb@0
+R = 37
+L = 37
+bar 46
+chords D7/A@0
+R = 38
+L = 38
+bar 47
+chords G7@0
+R = 39
+L = 39
+bar 48
+chords C9@0
+R = 41
+L = 41
+bar 49
+chords Dm@0
+R r:1 A3+D4+F4:1' r:1 A3+D4+F4:1'
+L D3:1' r:1 A2:1' r:1
+bar 50
+chords A7@0
+R r:1 A3+C#4+G4:1' r:1 A3+C#4+G4:1'
+L A2:1' r:1 E2:1' r:1
+bar 51
+chords D7@0
+R r:1 C4+F#4+A4:1' r:1 C4+F#4+A4:1'
+L D3:1' r:1 A2:1' r:1
+bar 52
+chords F7@0
+R r:1 C4+Eb4+A4:1' r:1 C4+Eb4+A4:1'
+L F2:1' r:1 C2:1' r:1
+bar 53
+chords Bb@0
+R = 37
+L = 37
+bar 54
+chords D7@0
+R = 51
+L = 51
+bar 55
+chords G7@0
+R = 39
+L = 39
+bar 56
+chords G7@0
+R = 39
+L = 39
+bar 57
+chords C9@0
+R = 41
+L = 41
+bar 58
+chords F13@0
+R r:1 A3+D4+Eb4:1' r:1 A3+D4+Eb4:1'
+L F2:1' r:1 C2:1' r:1
+bar 59
+chords Bb6/D@0 Dbdim@2
+R = 43
+L = 43
+bar 60
+chords F7/C@0 F7@2
+R = 44
+L = 44
+bar 61
+chords Bb@0
+R r:1 D4+F4+Bb4:1' r:1 D4+F4+Bb4:1'
+L Bb2:1' r:1 Bb2:1' A2:1'
+bar 62
+chords Bb/Ab@0
+R r:1 D4+F4+Bb4:1' r:1 D4+F4+Bb4:1'
+L Ab2:1' r:1 Ab2:1' r:1
+bar 63
+chords Eb/G@0
+R r:1 Eb4+G4+Bb4:1' r:1 Eb4+G4+Bb4:1'
+L G2:1' r:1 G2:1' G2:1'
+bar 64
+chords Ebm/Gb@0
+R r:1 Eb4+Gb4+Bb4:1' r:1 Eb4+Gb4+Bb4:1'
+L Gb2:1' r:1 Gb2:1' r:1
+bar 65
+chords Bb@0 Dbdim@2
+R r:1 D4+F4+Bb4:1' r:1 E4+G4+Bb4:1'
+L F2:1' r:1 D2:1' Db2:1'
+bar 66
+chords Cm7@0 F7@2
+R r:1 Bb3+Eb4+G4:1' r:1 A3+Eb4+F4:1'
+L C2:1 Eb2:1 F2:1 A2:1
+
+# First ending (only when the solos repeat; not in the order above)
+bar 67
+chords Bb@0 Eb9@1.5 Bb@3
+R Bb3+D4+F4:1' Bb3+D4+F4:.5' G3+Db4+F4:.5' G3+Db4+F4:1' Bb3+D4+F4:.5' r:.5
+L Bb2:1' Bb2:.5' Eb2:.5' Eb2:1' Bb2:.5' r:.5
+bar 68
+R r:4
+L r:1 F2+F3:3
+
+# Last time: the intro hits while the solo fades
+bar 69
+section FADE
+chords Bb@0
+hairpin -1 0 16
+R = 1
+L = 1
+bar 70
+R = 1
+L = 1
+bar 71
+R = 1
+L = 1
+bar 72
+R = 1
+L = 1
+
+# Coda
+bar 73
+section CODA
+chords Bb@0
+dyn f@0
+R Bb3+D4+F4:1' r:3
+L Bb2+F3:1' r:3
+bar 74
+R r:4
+L r:4
+bar 75
+R r:4
+L r:4
+bar 76
+R r:4
+L r:4
+bar 77
+chords Bb@0
+dyn mf@0
+hairpin 1 0 16
+R = 29
+L = 29
+bar 78
+chords Bb/Ab@0
+R = 30
+L = 30
+bar 79
+chords Eb/G@0
+R = 31
+L = 31
+bar 80
+chords Ebm/Gb@0
+R = 32
+L = 32
+bar 81
+chords Bb6@0 Dbdim@3
+dyn f@0
+R D4+F4+Bb4:1' D4+F4+Bb4:2 Bb3+E4+G4:1
+L F2+F3:2 D2+D3:1 Db2+Db3:1
+bar 82
+chords F7/C@0 F7@2
+R = 34
+L = 34
+bar 83
+chords Bb@0
+R Bb3+D4+F4:1^ r:.5 Bb3+D4+F4:.5^ r:2
+L Bb2+F3:1^ r:.5 Bb2+F3:.5^ r:2
+bar 84
+fermata 2
+R r:4
+L Bb1+Bb2:1^ r:.5 Bb1+Bb2:.5^~ Bb1+Bb2:2
